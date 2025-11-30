@@ -3,31 +3,61 @@ package com.apexvision.optimizer.service;
 import com.apexvision.optimizer.dtos.LocationDto;
 import com.apexvision.optimizer.dtos.RouteRequest;
 import com.apexvision.optimizer.dtos.RouteResponse;
+import com.apexvision.optimizer.strategy.OptimizationStrategy;
+import com.apexvision.optimizer.utils.GeoUtils;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class RouteService {
 
-    /**
-     * FASE 1: MOCK IMPLEMENTATION
-     * Recibe la lista y la devuelve tal cual, solo asignando números de secuencia.
-     */
+    private final OptimizationStrategy strategy;
+    private final GeoUtils geoUtils;
+
     public RouteResponse optimizeRoute(RouteRequest request) {
 
-        // Obtenemos la lista original
-        List<LocationDto> route = request.getLocations();
+        List<LocationDto> originalList = request.getLocations();
+        List<LocationDto> finalRoute;
 
-        // Simulamos proceso: Asignamos secuencia 0, 1, 2 en el orden que llegaron
-        for (int i = 0; i < route.size(); i++) {
-            route.get(i).setSequenceNumber(i);
+        try{
+            finalRoute = strategy.calculateOptimalRoute(originalList);
+        } catch (Exception e) {
+            log.error("Error in optimization algorithm: {}. Using original list.", e.getMessage());
+            finalRoute = originalList;
+            for(int i=0; i<finalRoute.size(); i++) finalRoute.get(i).setSequenceNumber(i);
         }
 
-        // Retornamos respuesta simulada
+        double totalDistance = calculateTotalDistance(finalRoute);
+
         return RouteResponse.builder()
-                .totalDistanceKm(0.0)
-                .optimizedOrder(route)
+                .totalDistanceKm(totalDistance)
+                .optimizedOrder(finalRoute)
                 .build();
+    }
+
+    // Private Assistant Method for adding sequential distances
+    private double calculateTotalDistance(List<LocationDto> route) {
+        if (route == null || route.size() < 2) {
+            return 0.0;
+        }
+
+        double total = 0.0;
+
+        for (int i = 0; i < route.size() - 1; i++) {
+            LocationDto start = route.get(i);
+            LocationDto end = route.get(i + 1);
+
+            total += geoUtils.calculateDistanceKm(
+                    start.getLatitude(), start.getLongitude(),
+                    end.getLatitude(), end.getLongitude()
+            );
+        }
+
+        return Math.round(total * 100.0) / 100.0;
     }
 }

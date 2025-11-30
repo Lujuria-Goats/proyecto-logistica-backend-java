@@ -6,8 +6,8 @@ import java.util.List;
 
 @Data
 public class RouteRequest {
-    private String fleetId;
+    private Long fleetId;
 
-    @NotEmpty(message = "La lista de ubicaciones no puede estar vacía")
+    @NotEmpty(message = "The list of locations cannot be empty")
     private List<LocationDto> locations;
 }
