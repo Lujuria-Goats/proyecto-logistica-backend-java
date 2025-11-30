@@ -1,50 +1,26 @@
 package com.apexvision.optimizer.utils;
 
+import org.springframework.stereotype.Component;
+
+@Component
 public class GeoUtils {
 
-    // Earth's radius in kilometers
-    private static final double Earth_Radius_Km = 6371.0;
+    private static final double EARTH_RADIUS_KM = 6371.0;
 
-    public GeoUtils() {
-        throw new IllegalStateException("Utility class");
-    }
+    /**
+     * Calcula la distancia en kilómetros entre dos coordenadas usando la fórmula de Haversine.
+     * @return Retorna la distancia en kilometros entre dos coordenadas
+     */
+    public double calculateDistanceKm(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
 
-    public static double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-        // Convert degrees to radians
-        double lat1Rad = Math.toRadians(lat1);
-        double lon1Rad = Math.toRadians(lon1);
-        double lat2Rad = Math.toRadians(lat2);
-        double lon2Rad = Math.toRadians(lon2);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(Math.toRadians(lat1)) *
+                Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
-        // Calculate difference in latitudes and longitudes
-        double deltaLat = lat2Rad - lat1Rad;
-        double deltaLon = lon2Rad - lon1Rad;
-
-        // Apply Haversine formula
-        // a = sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlon/2)
-
-        double a = Math.pow(Math.sin(deltaLat / 2), 2)
-                + Math.cos(lat1Rad) * Math.cos(lat2Rad)
-                * Math.pow(Math.sin(deltaLon / 2), 2);
-
-        // c = 2 * atan2(√a, √(1-a))
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        // Calculate final distance
-        // d = R * c
-        return Earth_Radius_Km * c;
+        return EARTH_RADIUS_KM * c;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
