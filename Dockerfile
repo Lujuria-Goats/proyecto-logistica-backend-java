@@ -1,46 +1,46 @@
 # ==========================================
-# ETAPA 1: BUILDER (Compilación)
+# STAGE 1: BUILDER
 # ==========================================
-# Usamos una imagen que ya tiene Maven y Java JDK listos
+# Use an official Maven image to build the application
 FROM maven:3.9.5-eclipse-temurin-17 AS builder
 
-# Establecemos el directorio de trabajo dentro del "Taller"
+# Set the working directory inside the container
 WORKDIR /app
 
-# 1. Copiamos SOLO el pom.xml primero (Estrategia de Caché)
-# Esto hace que Docker guarde las dependencias en memoria. Si no cambias el pom,
-# las siguientes veces no tendrá que descargar todo internet de nuevo.
+# 1. Copy only pom.xml first (Layer Caching Strategy)
+# This allows Docker to cache dependencies if the POM hasn't changed,
+# speeding up future builds significantly.
 COPY pom.xml .
 
-# 2. Descargamos las dependencias (sin copiar el código aún)
+# 2. Download dependencies (Go offline mode)
 RUN mvn dependency:go-offline
 
-# 3. Ahora sí, copiamos el código fuente (src)
+# 3. Copy the actual source code
 COPY src ./src
 
-# 4. Compilamos y empaquetamos
-# -DskipTests: Saltamos los tests para que el build sea rápido en la VPS
-# (Idealmente los tests se corren antes, pero para el MVP esto asegura que compile)
+# 4. Build and package the application
+# We skip tests here (-DskipTests) to speed up the deployment build.
+# Tests should be enforced in the CI pipeline (GitHub Actions) before this step.
 RUN mvn clean package -DskipTests
 
 # ==========================================
-# ETAPA 2: RUNTIME (Ejecución)
+# STAGE 2: RUNTIME
 # ==========================================
-# Usamos una imagen ligera (Alpine) que solo tiene lo necesario para CORRER Java
+# Use a lightweight JRE image (Alpine Linux) to minimize the final image size
 FROM eclipse-temurin:17-jre-alpine
 
-# Definimos zona horaria (Opcional, pero útil para logs en Colombia)
+# Set TimeZone to Bogota/Colombia (Critical for accurate logs)
 ENV TZ=America/Bogota
 
-# Directorio de trabajo en la imagen final
+# Set working directory for the runtime
 WORKDIR /app
 
-# Copiamos SOLO el archivo .jar generado en la ETAPA 1 (builder)
-# Lo renombramos a "app.jar" para que sea fácil de ejecutar
+# Copy the generated JAR artifact from the 'builder' stage
+# We rename it to 'app.jar' for simplicity
 COPY --from=builder /app/target/*.jar app.jar
 
-# Exponemos el puerto
+# Expose the application port
 EXPOSE 8080
 
-# Comando para arrancar la aplicación
+# Command to start the application
 ENTRYPOINT ["java", "-jar", "app.jar"]

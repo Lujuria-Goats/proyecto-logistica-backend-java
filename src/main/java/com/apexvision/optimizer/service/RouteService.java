@@ -19,6 +19,9 @@ public class RouteService {
     private final OptimizationStrategy strategy;
     private final GeoUtils geoUtils;
 
+    // Distance correction factor for urban traffic
+    private static final double TORTUOSITY_FACTOR = 1.3;
+
     public RouteResponse optimizeRoute(RouteRequest request) {
 
         List<LocationDto> originalList = request.getLocations();
@@ -58,6 +61,8 @@ public class RouteService {
             );
         }
 
-        return Math.round(total * 100.0) / 100.0;
+        double estimatedRoadDistance = total * TORTUOSITY_FACTOR;
+
+        return Math.round(estimatedRoadDistance * 100.0) / 100.0;
     }
 }
