@@ -1,6 +1,7 @@
-package com.apexvision.optimizer.strategy;
+package com.apexvision.optimizer.strategy.impl;
 
 import com.apexvision.optimizer.dtos.LocationDto;
+import com.apexvision.optimizer.strategy.OptimizationStrategy;
 import com.apexvision.optimizer.utils.GeoUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -10,7 +11,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class NearestNeighborStrategyImpl implements OptimizationStrategy{
+public class NearestNeighborStrategyImpl implements OptimizationStrategy {
 
     private final GeoUtils geoUtils;
 

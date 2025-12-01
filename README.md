@@ -9,7 +9,7 @@ The service is Stateless and is designed to integrate with the .NET Orchestrator
 ## Technology Stack
 
 - **Language**: Java 17 (LTS)
-- **Framework**: Spring Boot 3.x
+- **Framework**: Spring Boot 3.4.12
 - **Dependency Manager**: Maven
 - **API Documentation**: OpenAPI / Swagger UI
 - **Containerization**: Docker (Multi-Stage Build with Alpine Runtime)
