@@ -19,7 +19,7 @@ public class RouteController implements RouteControllerApi {
     private final RouteService routeService;
 
     @Override
-    public ResponseEntity<RouteResponse> optimize(@Valid RouteRequest request) {
+    public ResponseEntity<RouteResponse> optimize(@Valid @RequestBody RouteRequest request) {
 
         log.info("Optimization request received for fleet ID: {}", request.getFleetId());
 
