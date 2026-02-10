@@ -14,5 +14,6 @@ public class RouteRequest {
     private String fleetId;
 
     @NotEmpty(message = "The list of locations cannot be empty")
+    @jakarta.validation.Valid
     private List<LocationDto> locations;
 }

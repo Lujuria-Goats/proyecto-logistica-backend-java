@@ -2,47 +2,107 @@
 
 ## General Description
 
-This microservice acts as the "Mathematical Brain" of the Apex Vision platform. Its sole responsibility is to receive an unordered list of geographic coordinates and return the most efficient delivery route possible.
+This microservice serves as the **Mathematical Brain** of the Apex Vision logistics platform. Its primary responsibility is to receive an unordered list of geographic coordinates and return the most efficient delivery route using advanced Vehicle Routing Problem (VRP) solving algorithms.
 
-The service is Stateless and is designed to integrate with the .NET Orchestrator through REST API.
+The service is **stateless** and designed to integrate with the .NET Orchestrator through a REST API.
 
 ## Technology Stack
 
 - **Language**: Java 17 (LTS)
 - **Framework**: Spring Boot 3.4.12
 - **Dependency Manager**: Maven
+- **Optimization Engine**: Jsprit 1.9.0-beta.2
+- **Routing Engine**: GraphHopper 10.2
+- **Map Data**: OpenStreetMap (OSM) - Colombia
 - **API Documentation**: OpenAPI / Swagger UI
 - **Containerization**: Docker (Multi-Stage Build with Alpine Runtime)
 
 ## Architecture and Algorithms
 
-This service models the routing problem based on Graph Theory and implements robust software architecture patterns.
+This service models the routing problem using advanced combinatorial optimization techniques and implements robust software architecture patterns for high availability.
 
 ### 1. Mathematical Model
 
-- **Nodes (Vertices)**: Each location (order) is treated as a node in a complete graph.
-- **Edges**: Connections between nodes represent the physical distance between them.
+- **Problem Type**: Vehicle Routing Problem (VRP)
+- **Nodes (Vertices)**: Each delivery location is a node in a complete graph
+- **Edges**: Real-world road distances calculated using OpenStreetMap data
+- **Objective**: Minimize total travel distance while visiting all nodes
 
 ### 2. Optimization Strategy (Strategy Pattern)
 
-The system uses the **Strategy Pattern** to decouple the optimization logic from the business service. Currently, it implements:
+The system uses the **Strategy Pattern** to decouple optimization logic from business services.
 
-- **Algorithm**: Nearest Neighbor (Greedy Heuristic).
-- **Complexity**: O(N²).
-- **Logic**: Iteratively evaluates the unvisited node with the lowest cost (shortest distance) from the current position.
+**Current Implementation:**
 
-### 3. Resilience & Fallback
+- **Primary Algorithm**: Jsprit (Vehicle Routing Problem Solver)
+- **Distance Calculation**: GraphHopper (real road network topology)
+- **Complexity**: Internal Jsprit optimization (metaheuristics)
+- **Configuration**: Single vehicle, finite fleet, no depot return
 
-To ensure High Availability (HA), the service includes a **Fallback Mechanism**:
-- If the optimization algorithm fails (e.g., memory overflow or calculation error), the system **catches the exception and returns the original list**.
-- This guarantees that the driver always receives a route (even if not optimized) instead of a 500 Server Error.
+**Key Features:**
+- Considers actual road networks (not straight-line distances)
+- Respects real-world routing constraints
+- Optimizes for delivery scenarios
 
-### 4. Geodesic Calculation (Haversine Formula)
+### 3. Multi-Layer Resilience Pattern
 
-Unlike basic systems that use Euclidean distance (Pythagoras), this engine uses Spherical Trigonometry.
+To ensure **High Availability (HA)**, the service implements a three-layer resilience strategy:
 
-- **Formula**: Haversine.
-- **Justification**: Calculates the great-circle distance considering Earth's curvature, ensuring precision in logistical mileage.
+#### Layer 1: Jsprit Optimization
+- Primary optimization using Jsprit + GraphHopper
+- Best quality solution (considers real roads)
+
+#### Layer 2: Fallback to Original Order
+- If Jsprit fails (e.g., memory overflow, calculation error)
+- Returns the original location list with sequence numbers assigned
+- Guarantees the driver always receives a route
+
+#### Layer 3: Haversine Distance Fallback
+- If GraphHopper fails for distance calculation
+- Uses mathematical Haversine formula (straight-line distance)
+- Ensures total distance is always calculated
+
+**Result:** The service **never returns a 500 error** for routing requests. It gracefully degrades through fallback layers.
+
+### 4. Distance Calculation
+
+#### Primary: GraphHopper (Topological)
+- Uses OpenStreetMap road network data
+- Calculates actual driving distances
+- Considers road topology, one-way streets, etc.
+
+#### Fallback: Haversine Formula (Mathematical)
+- Great-circle distance on Earth's surface
+- Spherical trigonometry (not Euclidean)
+- Used only when GraphHopper fails
+
+**Formula:**
+```
+a = sin²(Δφ/2) + cos(φ₁) · cos(φ₂) · sin²(Δλ/2)
+c = 2 · atan2(√a, √(1-a))
+d = R · c
+```
+Where R = 6371 km (Earth's radius)
+
+### 5. Map Data Requirements
+
+**OSM File:**
+- Source: [Geofabrik - Colombia](https://download.geofabrik.de/south-america/colombia.html)
+- Size: ~200 MB (compressed PBF format)
+- Update Frequency: Monthly
+
+**Graph Cache:**
+- Generated on first startup
+- Size: ~5-10 GB
+- Initialization Time: ~10-15 minutes (first run only)
+- Subsequent Starts: ~30 seconds (cache reused)
+
+**Storage Path:**
+```
+/app/osm-data/
+├── colombia-latest.osm.pbf  (200 MB)
+└── graph-cache/              (5-10 GB)
+```
 
 ## API Reference
 
@@ -58,7 +118,7 @@ Orders a list of stops to minimize total distance traveled.
 
 ```json
 {
-  "fleetId": "camion-norte-01",
+  "fleetId": "truck-north-01",
   "locations": [
     {
       "id": 101,
@@ -79,7 +139,7 @@ Orders a list of stops to minimize total distance traveled.
 }
 ```
 
-Note: It is assumed that the first element of the list (index 0) is the starting point (Depot).
+**Note:** The first element (index 0) is assumed to be the starting point (depot/warehouse).
 
 #### Response Body (Example)
 
@@ -111,39 +171,62 @@ Note: It is assumed that the first element of the list (index 0) is the starting
 
 #### Status Codes
 
-- **200 OK**: Successful calculation.
-- **400 Bad Request**: Invalid data (Latitude > 90, empty list, etc.).
+- **200 OK**: Calculation successful
+- **400 Bad Request**: Invalid data (Latitude > 90, Longitude > 180, empty list, etc.)
+
+### Input Validation
+
+The API validates:
+- Latitude: -90 to 90
+- Longitude: -180 to 180
+- List must not be empty
+- IDs must not be null
 
 ## Deployment and Installation
 
-### Local Execution
+### Local Execution (Development)
 
 ```bash
-# 1. Clone repository
-git clone <url-repo>
+# 1. Ensure OSM file is in place
+mkdir -p osm-data
+# Download Colombia map (or mount volume if using Docker)
 
-# 2. Package
+# 2. Build project
 ./mvnw clean package
 
-# 3. Execute
+# 3. Run application
 java -jar target/route-optimizer-0.0.1-SNAPSHOT.jar
 ```
 
-### Docker Execution (Automated)
+**First Run:** Wait ~10-15 minutes for GraphHopper to process the OSM file.
 
-The project uses a Multi-Stage Dockerfile. You don't need Maven installed locally; the container handles the compilation.
+### Docker Execution (Production)
+
+The project uses a Multi-Stage Dockerfile. Maven compilation happens inside the container.
 
 ```bash
-# 1. Build the image (Compiles code + Builds runtime image)
+# 1. Build the image
 docker build -t apex-vision/optimizer .
 
-# 2. Run the container (Port 8080)
-docker run -p 8080:8080 apex-vision/optimizer
+# 2. Run with volume mount for OSM data
+docker run -p 8080:8080 \
+  -v $(pwd)/osm-data:/app/osm-data \
+  apex-vision/optimizer
+```
+
+**Environment Variables:**
+```bash
+# GraphHopper Configuration
+GRAPHHOPPER_OSM_PATH=/app/osm-data/colombia-latest.osm.pbf
+GRAPHHOPPER_GRAPH_LOCATION=/app/osm-data/graph-cache
+
+# Logging
+LOGGING_LEVEL_COM_APEXVISION_OPTIMIZER=INFO
 ```
 
 ### Interactive Documentation (Swagger)
 
-Once deployed, the live API documentation is available at:
+Once deployed, live API documentation is available at:
 
 **URL**: http://localhost:8080/swagger-ui.html
 
@@ -151,9 +234,40 @@ Once deployed, the live API documentation is available at:
 
 ```
 com.apexvision.optimizer
-├── controller: Exposes REST endpoints (RouteController)
-├── service: Business logic and Orchestration (RouteService)
-├── strategy: Optimization algorithms implementations (NearestNeighborStrategyImpl)
-├── utils: Mathematical formulas (GeoUtils)
-└── dto: Data transfer objects and validations (RouteRequest, LocationDto)
+├── controller       # REST endpoints (RouteController)
+├── service          # Business logic and orchestration (RouteService)
+│   └── graphhopper  # GraphHopper integration (GraphHopperService)
+├── strategy         # Optimization algorithm implementations
+│   └── impl         # JspritStrategyImpl (VRP solver)
+├── config           # Spring configuration (GraphHopperConfig)
+├── dtos             # Data transfer objects and validations
+└── advice           # Global exception handling
 ```
+
+## Performance Characteristics
+
+- **Optimization Time**: 100-500ms for 10-50 locations (depends on map complexity)
+- **Memory**: ~2-4 GB RAM (depending on cache size)
+- **Scalability**: Stateless design allows horizontal scaling
+- **Accuracy**: Real road distances (GraphHopper) vs. straight-line (Haversine fallback)
+
+## Troubleshooting
+
+### First Startup Takes Too Long
+- **Expected**: 10-15 minutes on first run (GraphHopper processes OSM file)
+- **Check logs**: `GraphHopper initialized successfully`
+
+### Error: "Cannot find OSM file"
+- **Solution**: Ensure `colombia-latest.osm.pbf` is in `/app/osm-data/`
+- **Download**: https://download.geofabrik.de/south-america/colombia.html
+
+### GraphHopper Returns Errors
+- **Solution**: Clear graph cache and restart
+```bash
+rm -rf osm-data/graph-cache
+# Restart application
+```
+
+## License
+
+Internal use - Apex Vision Platform

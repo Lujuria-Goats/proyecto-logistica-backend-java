@@ -1,46 +1,43 @@
-# ==========================================
-# STAGE 1: BUILDER
-# ==========================================
-# Use an official Maven image to build the application
-FROM maven:3.9.5-eclipse-temurin-17 AS builder
+FROM eclipse-temurin:17-jdk-alpine AS builder
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# 1. Copy only pom.xml first (Layer Caching Strategy)
-# This allows Docker to cache dependencies if the POM hasn't changed,
-# speeding up future builds significantly.
+# Copy Maven files
+COPY mvnw .
+COPY .mvn .mvn
 COPY pom.xml .
 
-# 2. Download dependencies (Go offline mode)
-RUN mvn dependency:go-offline
+# Download dependencies (cacheable)
+RUN ./mvnw dependency:go-offline -B
 
-# 3. Copy the actual source code
+# Copy source code
 COPY src ./src
 
-# 4. Build and package the application
-# We skip tests here (-DskipTests) to speed up the deployment build.
-# Tests should be enforced in the CI pipeline (GitHub Actions) before this step.
-RUN mvn clean package -DskipTests
+# Build application
+RUN ./mvnw clean package -DskipTests
 
-# ==========================================
-# STAGE 2: RUNTIME
-# ==========================================
-# Use a lightweight JRE image (Alpine Linux) to minimize the final image size
+# ====================================================================
+# Final image (lighter)
+# ====================================================================
 FROM eclipse-temurin:17-jre-alpine
 
-# Set TimeZone to Bogota/Colombia (Critical for accurate logs)
-ENV TZ=America/Bogota
-
-# Set working directory for the runtime
 WORKDIR /app
 
-# Copy the generated JAR artifact from the 'builder' stage
-# We rename it to 'app.jar' for simplicity
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+# Copy compiled JAR
 COPY --from=builder /app/target/*.jar app.jar
 
-# Expose the application port
+# Create directory for OSM data (will be mounted as volume)
+RUN mkdir -p /app/osm-data
+
+# Application port
 EXPOSE 8080
 
-# Command to start the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Default environment variables
+ENV GRAPHHOPPER_OSM_PATH=/app/osm-data/colombia-latest.osm.pbf \
+    GRAPHHOPPER_GRAPH_LOCATION=/app/osm-data/graph-cache
+
+# Startup command
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
